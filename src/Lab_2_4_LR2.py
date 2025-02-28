@@ -13,6 +13,9 @@ class LinearRegressor:
     def __init__(self):
         self.coefficients = None
         self.intercept = None
+        self.loss_history = []
+        self.steps_history = [] 
+
 
     """
     This next "fit" function is a general function that either calls the *fit_multiple* code that
@@ -38,17 +41,22 @@ class LinearRegressor:
             raise ValueError(
                 f"Method {method} not available for training linear regression."
             )
+            
         if np.ndim(X) == 1:
             X = X.reshape(-1, 1)
 
         X_with_bias = np.insert(
             X, 0, 1, axis=1
         )  # Adding a column of ones for intercept
+        
+        
+        
 
         if method == "least_squares":
             self.fit_multiple(X_with_bias, y)
         elif method == "gradient_descent":
             self.fit_gradient_descent(X_with_bias, y, learning_rate, iterations)
+            
 
     def fit_multiple(self, X, y):
         """
@@ -65,10 +73,30 @@ class LinearRegressor:
             None: Modifies the model's coefficients and intercept in-place.
         """
         # Replace this code with the code you did in the previous laboratory session
-
-        # Store the intercept and the coefficients of the model
-        self.intercept = None
-        self.coefficients = None
+        
+        #X_bias = np.c_[np.ones((X.shape[0], 1)), X]
+        X_bias=X
+        
+    
+        
+        X_T=X_bias.T
+        
+        X_T_X = X_T @ X_bias
+        
+        
+        
+        if np.linalg.det(X_T_X) != 0:
+            X_T_X_inv = np.linalg.inv(X_T_X)
+            
+        else:  
+            X_T_X_inv = np.linalg.pinv(X_T_X)
+        
+        
+        betas = np.dot(np.dot(X_T_X_inv, X_T), y)
+        
+        self.intercept=betas[0]
+        self.coefficients=betas[1:]
+        
 
     def fit_gradient_descent(self, X, y, learning_rate=0.01, iterations=1000):
         """
@@ -85,25 +113,42 @@ class LinearRegressor:
         """
 
         # Initialize the parameters to very small values (close to 0)
-        m = len(y)
-        self.coefficients = (
-            np.random.rand(X.shape[1] - 1) * 0.01
-        )  # Small random numbers
+    
+        m = len(y)    
+        
+        self.coefficients = np.random.rand(X.shape[1] - 1) * 0.01 
+        
         self.intercept = np.random.rand() * 0.01
 
         # Implement gradient descent (TODO)
+        
         for epoch in range(iterations):
-            predictions = None
+            
+            predictions = self.predict(X)
+            print(predictions)
             error = predictions - y
-
+            
+            
+            
+            print(error)
             # TODO: Write the gradient values and the updates for the paramenters
-            gradient = None
-            self.intercept -= None
-            self.coefficients -= None
+            
+            gradient_intercept=np.mean(error)
+            gradient_coefficients = np.dot(X.T, error) / m
+            
+            
+            self.intercept -= learning_rate * gradient_intercept
+            self.coefficients -= learning_rate * gradient_coefficients[1:]
 
+            
+            
+            mse = np.mean(error ** 2)
+            self.loss_history.append(mse)
+            self.steps_history.append((self.coefficients.copy(), self.intercept))
+            
             # TODO: Calculate and print the loss every 10 epochs
             if epoch % 1000 == 0:
-                mse = None
+                
                 print(f"Epoch {epoch}: MSE = {mse}")
 
     def predict(self, X):
@@ -120,13 +165,35 @@ class LinearRegressor:
         Raises:
             ValueError: If the model is not yet fitted.
         """
-
-        # Paste your code from last week
-
+        
+        
         if self.coefficients is None or self.intercept is None:
             raise ValueError("Model is not yet fitted")
 
-        return None
+        X_bias=None
+        
+        
+        
+        # Paste your code from last week
+        if  X.ndim == 1 :
+            x_reshaped=X.reshape(-1,1)
+            
+            X_bias = np.insert(x_reshaped, 0, 1, axis=1)    
+            predictions = self.intercept + self.coefficients * X  
+            
+        
+        else:
+            
+            
+            
+            X_bias = np.insert(X, 0, 1, axis=1)    
+            
+            params = np.concatenate([np.array([self.intercept]), self.coefficients])
+            
+            predictions = X @ params
+
+        return predictions
+
 
 
 def evaluate_regression(y_true, y_pred):
@@ -141,18 +208,30 @@ def evaluate_regression(y_true, y_pred):
         dict: A dictionary containing the R^2, RMSE, and MAE values.
     """
 
+
+    
     # R^2 Score
     # TODO
-    r_squared = None
+    
+    
+    suma_residuos = np.sum((y_true - y_pred) ** 2)
+    
+    
+    #suma total de las diferencias al cuadrado entre los valores reales y su media
+    
+    suma_total = np.sum((y_true - np.mean(y_true)) ** 2)
+    
+    #calcular el R², restando a 1 la suma de los residuos al cuadrado entre la suma de las diferencias al cuadrado entre los valores reales y su media
+    r_squared= 1-(suma_residuos/suma_total)
 
     # Root Mean Squared Error
     # TODO
-    rmse = None
+    mse=np.mean((y_true-y_pred)**2)
+    rmse=np.sqrt(mse)
 
     # Mean Absolute Error
     # TODO
-    mae = None
-
+    mae=np.mean(np.abs(y_true-y_pred))
     return {"R2": r_squared, "RMSE": rmse, "MAE": mae}
 
 
@@ -169,22 +248,73 @@ def one_hot_encode(X, categorical_indices, drop_first=False):
     Returns:
         np.ndarray: Transformed array with one-hot encoded columns.
     """
+    
     X_transformed = X.copy()
+    
     for index in sorted(categorical_indices, reverse=True):
         # TODO: Extract the categorical column
-        categorical_column = None
-
+        categorical_column = X[:, index]
+        
         # TODO: Find the unique categories (works with strings)
-        unique_values = None
+        unique_values = np.unique(categorical_column)
 
         # TODO: Create a one-hot encoded matrix (np.array) for the current categorical column
-        one_hot = None
+        one_hot = np.array([categorical_column == value for value in unique_values]).T
 
         # Optionally drop the first level of one-hot encoding
         if drop_first:
             one_hot = one_hot[:, 1:]
 
         # TODO: Delete the original categorical column from X_transformed and insert new one-hot encoded columns
-        X_transformed = None
+        X_transformed = np.delete(X_transformed, index, axis=1)
+        X_transformed= np.hstack((X_transformed[:, :index], one_hot, X_transformed[:, index:]))
+        
 
     return X_transformed
+
+"""
+x = np.array([0, 3, 2, 1, 4, 6, 7, 8, 9, 10])
+y = np.array([2, 3, 2, 4, 5, 7, 9, 9, 10, 13])
+
+data = pd.read_csv("data/synthetic_dataset.csv")
+
+# TODO: Obtain inputs and output from data
+X1 = data.iloc[:, :-1].values
+y1 = data.iloc[:, -1].values
+
+
+
+model=LinearRegressor()
+
+model.fit(X1,y1)
+y_pred=model.predict(X1)
+
+
+
+
+url = "https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/master/insurance.csv"
+data = pd.read_csv(url)
+
+# Preprocess the data
+# TODO: One-hot encode categorical variables. Use pd.get_dummies()
+data_encoded = pd.get_dummies(data, drop_first=True) 
+
+# Split the data into features (X) and target (y)
+X = data_encoded.drop('charges', axis=1)
+y = data_encoded['charges']
+
+print(X.shape)
+
+# Instantiate the LinearRegression model
+model=LinearRegressor()
+
+# Fit the model on the training data
+model.fit_gradient_descent(X, y)
+
+# Make predictions on the test data
+y_pred = model.predict(X)
+
+# Evaluate the model
+evaluation_metrics = evaluate_regression(y, y_pred)
+print(evaluation_metrics)
+"""
