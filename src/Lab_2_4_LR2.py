@@ -77,7 +77,6 @@ class LinearRegressor:
         #X_bias = np.c_[np.ones((X.shape[0], 1)), X]
         X_bias=X
         
-    
         
         X_T=X_bias.T
         
@@ -190,7 +189,7 @@ class LinearRegressor:
             
             params = np.concatenate([np.array([self.intercept]), self.coefficients])
             
-            predictions = X @ params
+            predictions = X_bias @ params
 
         return predictions
 
